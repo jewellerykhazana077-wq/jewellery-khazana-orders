@@ -17,6 +17,16 @@ app.use(session({
   cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
+// Ensure MongoDB is connected before every API request
+let _connected = false;
+app.use(async (req, res, next) => {
+  if (!_connected) {
+    try { await db.connect(); _connected = true; }
+    catch (e) { return res.status(500).json({ error: 'Database connection failed: ' + e.message }); }
+  }
+  next();
+});
+
 const requireAuth = (req, res, next) => {
   if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
   next();
@@ -212,13 +222,13 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
 });
 
 // ── START ──
-db.connect().then(() => {
+// Local dev: listen on PORT. Vercel: export app (connection handled by middleware above)
+if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`\n✨ Jewellery Khazana Order Dashboard`);
     console.log(`   Running at: http://localhost:${PORT}`);
     console.log(`   Default login → admin / Admin@123\n`);
   });
-}).catch(err => {
-  console.error('Failed to connect to MongoDB:', err.message);
-  process.exit(1);
-});
+}
+
+module.exports = app;
