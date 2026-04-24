@@ -5,11 +5,9 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      - key: DATA_DIR
-        value: /data
+      - key: MONGO_URI
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
       - key: NODE_ENV
         value: production
-    disk:
-      name: jewellery-data
-      mountPath: /data
-      sizeGB: 1
