@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jewellery Khazana – Order Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="logo">💎</span>
+    <div>
+      <h1>Jewellery Khazana</h1>
+      <small>Order Management Dashboard</small>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user">
+      <strong id="navUsername">–</strong>
+      <span id="navBadge" class="nav-badge">employee</span>
+    </div>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.5)" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main-container">
+
+  <!-- DATE BAR -->
+  <div class="date-bar">
+    <div class="date-bar-left">
+      <span class="date-label">📅 Viewing:</span>
+      <input type="date" id="dateFilter" onchange="changeDate(this.value)" title="Select date to view">
+      <button class="btn btn-outline btn-sm" onclick="goToday()">Today</button>
+    </div>
+    <div class="date-bar-right">
+      <button class="btn btn-gold btn-sm" id="exportBtn" onclick="exportExcel()">
+        ⬇ Export Excel
+      </button>
+      <span class="export-lock" id="exportLock" style="display:none">Available after 9:00 PM</span>
+      <!-- Admin only -->
+      <button class="btn btn-primary btn-sm admin-only" id="manageUsersBtn" onclick="toggleUserPanel()" style="display:none">
+        👥 Manage Users
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-grid">
+    <div class="stat-card stat-total">
+      <div class="stat-label">Total Orders</div>
+      <div class="stat-value" id="st-total">0</div>
+      <div class="stat-sub">recorded today</div>
+    </div>
+    <div class="stat-card stat-unprocessed">
+      <div class="stat-label">Unprocessed</div>
+      <div class="stat-value" id="st-unprocessed">0</div>
+      <div class="stat-sub">pending action</div>
+    </div>
+    <div class="stat-card stat-processing">
+      <div class="stat-label">Processing</div>
+      <div class="stat-value" id="st-processing">0</div>
+      <div class="stat-sub">in progress</div>
+    </div>
+    <div class="stat-card stat-not_colored">
+      <div class="stat-label">Not In Color</div>
+      <div class="stat-value" id="st-not_colored">0</div>
+      <div class="stat-sub">not dispatched</div>
+    </div>
+    <div class="stat-card stat-raw_material">
+      <div class="stat-label">Raw Material</div>
+      <div class="stat-value" id="st-raw_material">0</div>
+      <div class="stat-sub">not dispatched</div>
+    </div>
+    <div class="stat-card stat-dispatched">
+      <div class="stat-label">Dispatched</div>
+      <div class="stat-value" id="st-dispatched">0</div>
+      <div class="stat-sub">shipped out</div>
+    </div>
+  </div>
+
+  <!-- FORM + TABLE -->
+  <div class="panels">
+
+    <!-- ADD ORDER FORM -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>➕ Add Order</h2>
+      </div>
+      <div class="panel-body">
+        <form id="orderForm" onsubmit="submitOrder(event)">
+          <div class="form-group">
+            <label>Order Date *</label>
+            <input type="date" id="f-date" required>
+          </div>
+          <div class="form-group">
+            <label>Order Number *</label>
+            <input type="text" id="f-orderNo" placeholder="e.g. #1234" required>
+          </div>
+          <div class="form-group">
+            <label>Product Image URL</label>
+            <input type="url" id="f-imageUrl" placeholder="Paste product image link here">
+          </div>
+          <div class="form-group">
+            <label>Status *</label>
+            <select id="f-status" onchange="handleStatusChange()" required>
+              <option value="">— Select Status —</option>
+              <option value="unprocessed">Unprocessed</option>
+              <option value="processing">Processing</option>
+              <option value="not_colored">Not Dispatched – Not In Color</option>
+              <option value="raw_material">Not Dispatched – Raw Material Not In Stock</option>
+              <option value="dispatched">Dispatched</option>
+            </select>
+          </div>
+          <div class="form-group awb-row" id="f-awb-row">
+            <label>AWB Number *</label>
+            <input type="text" id="f-awb" placeholder="Enter AWB / tracking number">
+          </div>
+          <div id="formError" class="error-msg" style="display:none"></div>
+          <button type="submit" class="btn btn-primary btn-full" id="submitBtn" style="margin-top:4px">
+            Save Order
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ORDERS TABLE -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>📋 Orders</h2>
+        <span id="orderCount" style="font-size:13px;color:var(--text-muted)">0 orders</span>
+      </div>
+      <div id="ordersContainer">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: USER MANAGEMENT -->
+  <div class="admin-section" id="userPanel" style="display:none">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>👥 User Management</h2>
+        <button class="btn btn-primary btn-sm" onclick="showAddUserModal()">+ Add User</button>
+      </div>
+      <div class="panel-body">
+        <div id="usersContainer"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-container -->
+
+<!-- STATUS MODAL (employee & admin) -->
+<div class="modal-overlay" id="statusModal">
+  <div class="modal">
+    <h3>Update Order Status</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">
+      Order: <strong id="m-orderNo">–</strong>
+    </p>
+    <div class="form-group">
+      <label>New Status *</label>
+      <select id="m-status" onchange="handleModalStatusChange()">
+        <option value="unprocessed">Unprocessed</option>
+        <option value="processing">Processing</option>
+        <option value="not_colored">Not Dispatched – Not In Color</option>
+        <option value="raw_material">Not Dispatched – Raw Material Not In Stock</option>
+        <option value="dispatched">Dispatched</option>
+      </select>
+    </div>
+    <div class="form-group awb-row" id="m-awb-row">
+      <label>AWB Number *</label>
+      <input type="text" id="m-awb" placeholder="Enter AWB / tracking number">
+    </div>
+    <div id="modalError" class="error-msg" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('statusModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStatus()">Update Status</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Edit Order</h3>
+    <div class="form-group">
+      <label>Order Date *</label>
+      <input type="date" id="e-date">
+    </div>
+    <div class="form-group">
+      <label>Order Number *</label>
+      <input type="text" id="e-orderNo">
+    </div>
+    <div class="form-group">
+      <label>Product Image URL</label>
+      <input type="url" id="e-imageUrl">
+    </div>
+    <div class="form-group">
+      <label>Status *</label>
+      <select id="e-status" onchange="handleEditStatusChange()">
+        <option value="unprocessed">Unprocessed</option>
+        <option value="processing">Processing</option>
+        <option value="not_colored">Not Dispatched – Not In Color</option>
+        <option value="raw_material">Not Dispatched – Raw Material Not In Stock</option>
+        <option value="dispatched">Dispatched</option>
+      </select>
+    </div>
+    <div class="form-group awb-row" id="e-awb-row">
+      <label>AWB Number *</label>
+      <input type="text" id="e-awb">
+    </div>
+    <div id="editError" class="error-msg" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD USER MODAL (admin) -->
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal">
+    <h3>Add New User</h3>
+    <div class="form-group">
+      <label>Username *</label>
+      <input type="text" id="u-username" placeholder="Enter username">
+    </div>
+    <div class="form-group">
+      <label>Password *</label>
+      <input type="password" id="u-password" placeholder="Set a password">
+    </div>
+    <div class="form-group">
+      <label>Role *</label>
+      <select id="u-role">
+        <option value="employee">Employee</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div id="userError" class="error-msg" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let currentUser = null;
+let selectedDate = todayDate();
+let editingOrderId = null;
+let statusOrderId = null;
+
+// ── INIT ──
+(async () => {
+  try {
+    const r = await fetch('/api/auth/me');
+    if (!r.ok) { window.location.href = '/'; return; }
+    const { user } = await r.json();
+    currentUser = user;
+    document.getElementById('navUsername').textContent = user.username;
+    document.getElementById('navBadge').textContent = user.role;
+    if (user.role === 'admin') {
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    }
+    initDateFilter();
+    checkExportLock();
+    await loadData(selectedDate);
+  } catch {
+    window.location.href = '/';
+  }
+})();
+
+function todayDate() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function initDateFilter() {
+  const el = document.getElementById('dateFilter');
+  el.value = selectedDate;
+  // Employees see today's date picker but can also select past dates to view
+  document.getElementById('f-date').value = todayDate();
+}
+
+function checkExportLock() {
+  const exportBtn = document.getElementById('exportBtn');
+  const exportLock = document.getElementById('exportLock');
+  if (currentUser.role === 'admin') {
+    exportBtn.style.display = '';
+    exportLock.style.display = 'none';
+    return;
+  }
+  const hour = new Date().getHours();
+  if (hour >= 21) {
+    exportBtn.disabled = false;
+    exportLock.style.display = 'none';
+  } else {
+    exportBtn.disabled = true;
+    exportLock.style.display = 'block';
+    // recheck every minute
+    setTimeout(checkExportLock, 60000);
+  }
+}
+
+async function changeDate(date) {
+  selectedDate = date;
+  await loadData(date);
+}
+
+function goToday() {
+  const d = todayDate();
+  document.getElementById('dateFilter').value = d;
+  changeDate(d);
+}
+
+// ── DATA ──
+async function loadData(date) {
+  await Promise.all([loadSummary(date), loadOrders(date)]);
+}
+
+async function loadSummary(date) {
+  try {
+    const r = await fetch(`/api/orders/summary?date=${date}`);
+    const s = await r.json();
+    document.getElementById('st-total').textContent = s.total;
+    document.getElementById('st-unprocessed').textContent = s.unprocessed;
+    document.getElementById('st-processing').textContent = s.processing;
+    document.getElementById('st-not_colored').textContent = s.not_colored;
+    document.getElementById('st-raw_material').textContent = s.raw_material;
+    document.getElementById('st-dispatched').textContent = s.dispatched;
+    // Update sub-labels for selected date
+    const isToday = date === todayDate();
+    document.querySelectorAll('.stat-sub').forEach(el => {
+      if (el.textContent.includes('recorded')) {
+        el.textContent = isToday ? 'recorded today' : 'recorded on date';
+      }
+    });
+  } catch {}
+}
+
+async function loadOrders(date) {
+  const container = document.getElementById('ordersContainer');
+  container.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/orders?date=${date}`);
+    const orders = await r.json();
+    document.getElementById('orderCount').textContent = orders.length + ' order' + (orders.length !== 1 ? 's' : '');
+    renderOrders(orders);
+  } catch {
+    container.innerHTML = '<p class="error-msg" style="margin:16px">Failed to load orders.</p>';
+  }
+}
+
+function renderOrders(orders) {
+  const container = document.getElementById('ordersContainer');
+  if (!orders.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📦</div>
+        <p>No orders recorded for this date.</p>
+      </div>`;
+    return;
+  }
+
+  const statusLabels = {
+    unprocessed: 'Unprocessed',
+    processing: 'Processing',
+    not_colored: 'Not In Color',
+    raw_material: 'Raw Material',
+    dispatched: 'Dispatched'
+  };
+
+  const rows = orders.map(o => {
+    const imgCell = o.product_image_url
+      ? `<a href="${escHtml(o.product_image_url)}" target="_blank" title="View product image">
+           <img src="${escHtml(o.product_image_url)}" class="img-thumb" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+           <span class="img-link" style="display:none">🔗 View</span>
+         </a>`
+      : '<span class="no-img">—</span>';
+
+    const awbCell = o.awb_number
+      ? `<span class="awb-code">${escHtml(o.awb_number)}</span>`
+      : '<span class="no-img">—</span>';
+
+    const editBtn = currentUser.role === 'admin'
+      ? `<button class="btn btn-outline btn-sm" onclick="openEditModal(${o.id})" style="margin-right:6px">Edit</button>`
+      : '';
+
+    return `
+      <tr>
+        <td>${escHtml(o.order_number)}</td>
+        <td>${imgCell}</td>
+        <td><span class="badge badge-${o.status}">${statusLabels[o.status] || o.status}</span></td>
+        <td>${awbCell}</td>
+        <td style="font-size:12px;color:var(--text-muted)">${escHtml(o.created_by_name || '—')}</td>
+        <td style="font-size:12px;color:var(--text-muted)">${formatTime(o.created_at)}</td>
+        <td>
+          ${editBtn}
+          <button class="btn btn-sm" style="background:var(--bg);border:1px solid var(--border);color:var(--primary)"
+            onclick="openStatusModal(${o.id}, '${escHtml(o.order_number)}', '${o.status}', '${escHtml(o.awb_number || '')}')">
+            Change Status
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Image</th>
+            <th>Status</th>
+            <th>AWB</th>
+            <th>Recorded By</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── ADD ORDER ──
+function handleStatusChange() {
+  const status = document.getElementById('f-status').value;
+  const awbRow = document.getElementById('f-awb-row');
+  awbRow.classList.toggle('visible', status === 'dispatched');
+  if (status !== 'dispatched') document.getElementById('f-awb').value = '';
+}
+
+async function submitOrder(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('formError');
+  errEl.style.display = 'none';
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const status = document.getElementById('f-status').value;
+  const awb = document.getElementById('f-awb').value.trim();
+
+  if (status === 'dispatched' && !awb) {
+    errEl.textContent = 'AWB number is required for dispatched orders.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save Order';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        order_date: document.getElementById('f-date').value,
+        order_number: document.getElementById('f-orderNo').value.trim(),
+        product_image_url: document.getElementById('f-imageUrl').value.trim() || null,
+        status,
+        awb_number: status === 'dispatched' ? awb : null
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('orderForm').reset();
+      document.getElementById('f-date').value = todayDate();
+      document.getElementById('f-awb-row').classList.remove('visible');
+      showToast('Order saved successfully!', 'success');
+      await loadData(selectedDate);
+    } else {
+      errEl.textContent = data.error || 'Failed to save order.';
+      errEl.style.display = 'block';
+    }
+  } catch {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Save Order';
+}
+
+// ── STATUS MODAL ──
+function openStatusModal(id, orderNo, currentStatus, currentAwb) {
+  statusOrderId = id;
+  document.getElementById('m-orderNo').textContent = orderNo;
+  document.getElementById('m-status').value = currentStatus;
+  document.getElementById('m-awb').value = currentAwb || '';
+  document.getElementById('modalError').style.display = 'none';
+  handleModalStatusChange();
+  openModal('statusModal');
+}
+
+function handleModalStatusChange() {
+  const status = document.getElementById('m-status').value;
+  document.getElementById('m-awb-row').classList.toggle('visible', status === 'dispatched');
+}
+
+async function saveStatus() {
+  const errEl = document.getElementById('modalError');
+  errEl.style.display = 'none';
+  const status = document.getElementById('m-status').value;
+  const awb = document.getElementById('m-awb').value.trim();
+
+  if (status === 'dispatched' && !awb) {
+    errEl.textContent = 'AWB number is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/orders/${statusOrderId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, awb_number: status === 'dispatched' ? awb : null })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('statusModal');
+      showToast('Status updated!', 'success');
+      await loadData(selectedDate);
+    } else {
+      errEl.textContent = data.error || 'Update failed.';
+      errEl.style.display = 'block';
+    }
+  } catch {
+    errEl.textContent = 'Connection error.';
+    errEl.style.display = 'block';
+  }
+}
+
+// ── EDIT MODAL (admin) ──
+async function openEditModal(id) {
+  editingOrderId = id;
+  document.getElementById('editError').style.display = 'none';
+  try {
+    const r = await fetch(`/api/orders?date=${selectedDate}`);
+    const orders = await r.json();
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    document.getElementById('e-date').value = order.order_date;
+    document.getElementById('e-orderNo').value = order.order_number;
+    document.getElementById('e-imageUrl').value = order.product_image_url || '';
+    document.getElementById('e-status').value = order.status;
+    document.getElementById('e-awb').value = order.awb_number || '';
+    handleEditStatusChange();
+    openModal('editModal');
+  } catch {}
+}
+
+function handleEditStatusChange() {
+  const status = document.getElementById('e-status').value;
+  document.getElementById('e-awb-row').classList.toggle('visible', status === 'dispatched');
+}
+
+async function saveEdit() {
+  const errEl = document.getElementById('editError');
+  errEl.style.display = 'none';
+  const status = document.getElementById('e-status').value;
+  const awb = document.getElementById('e-awb').value.trim();
+
+  if (status === 'dispatched' && !awb) {
+    errEl.textContent = 'AWB number is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/orders/${editingOrderId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        order_date: document.getElementById('e-date').value,
+        order_number: document.getElementById('e-orderNo').value.trim(),
+        product_image_url: document.getElementById('e-imageUrl').value.trim() || null,
+        status,
+        awb_number: status === 'dispatched' ? awb : null
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('editModal');
+      showToast('Order updated!', 'success');
+      await loadData(selectedDate);
+    } else {
+      errEl.textContent = data.error || 'Update failed.';
+      errEl.style.display = 'block';
+    }
+  } catch {
+    errEl.textContent = 'Connection error.';
+    errEl.style.display = 'block';
+  }
+}
+
+// ── EXPORT ──
+function exportExcel() {
+  window.location.href = `/api/orders/export?date=${selectedDate}`;
+}
+
+// ── USER MANAGEMENT ──
+function toggleUserPanel() {
+  const panel = document.getElementById('userPanel');
+  if (panel.style.display === 'none') {
+    panel.style.display = '';
+    loadUsers();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+async function loadUsers() {
+  const container = document.getElementById('usersContainer');
+  container.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/users');
+    if (r.status === 401 || r.status === 403) {
+      container.innerHTML = '<p class="error-msg" style="margin:12px">Session expired. Please <a href="/">log in again</a>.</p>';
+      return;
+    }
+    const users = await r.json();
+    if (!Array.isArray(users) || users.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);padding:16px">No users found.</p>';
+      return;
+    }
+    const meId = currentUser ? currentUser.id : -1;
+    const rows = users.map(u => `
+      <tr>
+        <td><strong>${escHtml(u.username)}</strong></td>
+        <td><span class="badge badge-${u.role === 'admin' ? 'dispatched' : 'processing'}">${u.role}</span></td>
+        <td style="font-size:12px;color:var(--text-muted)">${u.created_at || '—'}</td>
+        <td>
+          ${u.id !== meId && u.role !== 'admin'
+            ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${escHtml(u.username)}')">Remove</button>`
+            : '<span style="color:var(--text-muted);font-size:12px">—</span>'}
+        </td>
+      </tr>`).join('');
+
+    container.innerHTML = `
+      <div class="table-wrapper">
+        <table class="users-table">
+          <thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    container.innerHTML = `<p class="error-msg" style="margin:12px">Failed to load users: ${err.message || 'Connection error'}. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadUsers()">Retry</button></p>`;
+  }
+}
+
+function showAddUserModal() {
+  document.getElementById('u-username').value = '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-role').value = 'employee';
+  document.getElementById('userError').style.display = 'none';
+  openModal('addUserModal');
+}
+
+async function saveUser() {
+  const errEl = document.getElementById('userError');
+  errEl.style.display = 'none';
+  const username = document.getElementById('u-username').value.trim();
+  const password = document.getElementById('u-password').value;
+  const role = document.getElementById('u-role').value;
+
+  if (!username || !password) {
+    errEl.textContent = 'Username and password are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, role })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('addUserModal');
+      showToast(`User "${username}" created!`, 'success');
+      loadUsers();
+    } else {
+      errEl.textContent = data.error || 'Failed to create user.';
+      errEl.style.display = 'block';
+    }
+  } catch {
+    errEl.textContent = 'Connection error.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Remove user "${username}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast(`User "${username}" removed.`, 'success');
+      loadUsers();
+    } else {
+      const d = await res.json();
+      showToast(d.error || 'Delete failed.', 'error');
+    }
+  } catch {
+    showToast('Connection error.', 'error');
+  }
+}
+
+// ── AUTH ──
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/';
+}
+
+// ── MODAL HELPERS ──
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ── TOAST ──
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── UTILS ──
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatTime(dt) {
+  if (!dt) return '—';
+  try {
+    const d = new Date(dt.replace(' ', 'T'));
+    return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch { return dt; }
+}
+</script>
+</body>
+</html>
